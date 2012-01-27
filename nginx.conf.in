@@ -1,0 +1,69 @@
+daemon off;
+
+worker_processes    1;
+
+error_log /dev/stderr notice;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    passenger_root /home/dotcloud/data/passenger;
+    # note that we use default here (i.e: what has been set with:
+    # rvm use <ruby_version> --default)
+    passenger_ruby /usr/local/rvm/wrappers/default/ruby;
+    passenger_friendly_error_pages off;
+
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    log_format combined-realip '$remote_addr ($http_x_real_ip) - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"';
+    access_log /dev/stdout combined-realip;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout  65;
+
+    gzip  on;
+
+    server {
+        listen       @PORT_WWW@ default;
+        server_name  localhost;
+
+        if (-f /home/dotcloud/current/maintenance) {
+            return 503;
+        }
+
+        root /home/dotcloud/current/public;
+        passenger_enabled on;
+
+        rack_env @RACK_ENV@;
+        passenger_set_cgi_param SERVER_NAME $http_host;
+
+        error_page 404 @404;
+        error_page 500 @500;
+        error_page 502 @502;
+        error_page 503 @503;
+        error_page 504 @504;
+
+        location @404 {
+            rewrite ^ /404.html;
+        }
+        location @500 {
+            rewrite ^ /500.html;
+        }
+        location @502 {
+            rewrite ^ /502.html;
+        }
+        location @503 {
+            rewrite ^ /503.html;
+        }
+        location @504 {
+            rewrite ^ /504.html;
+        }
+
+        include /home/dotcloud/current/*nginx.conf;
+    }
+}
