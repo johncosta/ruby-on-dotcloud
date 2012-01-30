@@ -4,6 +4,9 @@ shopt -s extglob
 
 name=ruby
 
+passenger_install_dir="$HOME/data/passenger"
+nginx_install_dir="$HOME/data/nginx"
+
 msg() {
     echo -e "\033[1;32m-->\033[0m $0:" $*
 }
@@ -39,8 +42,6 @@ install_ruby() {
 
 install_nginx_passenger() {
     local passenger_url="http://rubyforge.org/frs/download.php/75548/passenger-3.0.11.tar.gz"
-    local passenger_install_dir="$HOME/data/passenger"
-    local nginx_install_dir="$HOME/data/nginx"
 
     # install nginx/passenger requirements
     if [ ! -d $passenger_install_dir ] ; then
@@ -99,12 +100,12 @@ install_gems() {
 
 install_application() {
     mv profile ~/
+    mv passenger-kill-stuck-workers $passenger_install_dir/bin/
+
     # Use ~/code and ~/current like the regular Ruby service for better compatibility
     msg "installing application to ~/current/"
     rsync -aH --delete --exclude "data" * ~/current/
 }
-
-env
 
 move_to_approot
 upgrade_rvm

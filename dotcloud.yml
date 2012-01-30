@@ -6,6 +6,7 @@ ruby:
         - libpcre3-dev
     processes:
         nginx: nginx
+        watcher: passenger-kill-stuck-workers
     # Could be moved to environment to make them mutable after the initial build
     config:
         # This is directly used by "rvm install"

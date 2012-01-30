@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+#  Phusion Passenger - http://www.modrails.com/
+#  Copyright (c) 2010 Phusion
+#
+#  "Phusion Passenger" is a trademark of Hongli Lai & Ninh Bui.
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in
+#  all copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#  THE SOFTWARE.
+
+# 2012, Louis Opter <louis@dotcloud.com>, create a script inspired by
+# passenger-status that kill stuck Ruby processes
+
+source_root = File.expand_path(File.dirname(__FILE__) + "/..")
+$LOAD_PATH.unshift("#{source_root}/lib")
+require 'phusion_passenger'
+require 'phusion_passenger/platform_info'
+require 'phusion_passenger/admin_tools/server_instance'
+
+include PhusionPassenger::AdminTools
+
+# Each check_interval seconds this daemon inspects the Ruby processes launched
+# by Passenger. If a Ruby process didn't handled more request than at the last
+# check this daemon sigkill it.
+#
+# Note: the first processes will be killed after 2 * CHECK_INTERVAL seconds.
+$CHECK_INTERVAL = 60
+
+def watch_processes(server_instance)
+    server_instance.connect(:passenger_status) do
+        last = {}
+        while 1 do
+            current = {}
+
+            # Inspect each Rack process in each Passenger group
+            server_instance.groups.each do |group|
+                current[group.name] = {}
+
+                group.processes.each do |process|
+                    # We don't care about idle processes
+                    if process.sessions > 0
+
+                        # Check if we know this process already and if it is stuck
+                        if last.has_key?(group.name) and last[group.name].has_key?(process.pid) \
+                           and last[group.name][process.pid] == process.processed
+                            puts "Killing stuck process #{process.pid} (processed #{process.processed} requests)"
+                            Process.kill("KILL", process.pid)
+                        else
+                            # Refresh its status in our hash
+                            current[group.name][process.pid] = process.processed
+                        end
+
+                    end
+                end
+
+            end
+
+            last = current
+            sleep $CHECK_INTERVAL
+        end
+    end
+end
+
+def run
+    if ARGV.empty?
+        server_instances = ServerInstance.list
+        if server_instances.empty?
+            STDERR.puts("ERROR: Phusion Passenger doesn't seem to be running.")
+            exit 2
+        elsif server_instances.size == 1
+            watch_processes(server_instances.first)
+        else
+            puts "It appears that multiple Passenger instances are running. Please select a"
+            puts "specific one by running:"
+            puts
+            puts "  passenger-kill-stuck-workers <PID>"
+            puts
+            puts "The following Passenger instances are running:"
+            server_instances.each do |instance|
+                puts "  PID: #{instance.pid}"
+            end
+            exit 1
+        end
+    else
+        server_instance = ServerInstance.for_pid(ARGV[0].to_i)
+        watch_processes(server_instance)
+    end
+end
+
+run
