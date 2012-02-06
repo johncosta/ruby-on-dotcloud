@@ -4,8 +4,8 @@ shopt -s extglob
 
 name=ruby
 
-passenger_install_dir="$HOME/data/passenger"
-nginx_install_dir="$HOME/data/nginx"
+passenger_install_dir="$HOME/passenger"
+nginx_install_dir="$HOME/nginx"
 
 msg() {
     echo -e "\033[1;32m-->\033[0m $0:" $*
@@ -43,6 +43,8 @@ install_ruby() {
 install_nginx_passenger() {
     local passenger_url="http://rubyforge.org/frs/download.php/75548/passenger-3.0.11.tar.gz"
 
+    msg "Passsenger install directory: $passenger_install_dir"
+
     # install nginx/passenger requirements
     if [ ! -d $passenger_install_dir ] ; then
         msg "fetch and installing Nginx/Passenger"
@@ -56,6 +58,8 @@ install_nginx_passenger() {
     else
         msg "Passenger already installed"
     fi
+
+    msg "Nginx install directory: $nginx_install_dir"
 
     # install nginx
     if [ ! -d $nginx_install_dir ] ; then
@@ -90,15 +94,25 @@ install_nginx_passenger() {
     # XXX: PORT_WWW is missing in the environment at build time
     sed > $nginx_install_dir/conf/nginx.conf < nginx.conf.in    \
         -e "s/@PORT_WWW@/${PORT_WWW:-42800}/g"                  \
+        -e "s#@PASSENGER_ROOT@#$passenger_install_dir#g"        \
         -e "s/@RACK_ENV@/${SERVICE_CONFIG_RACK_ENV:-production}/g"
 }
 
 install_gems() {
-    gem install --no-ri --no-rdoc bundler
-    bundle install
+    if [ -f Gemfile ]; then
+        msg "Installing dependencies from Gemfile"
+
+        gem install --no-ri --no-rdoc bundler
+        bundle install
+    else
+        msg "No Gemfile found, not running \`bundle install'"
+    fi
 }
 
 install_application() {
+    cat >> profile << EOF
+export PATH="$nginx_install_dir/sbin:$passenger_install_dir/bin:$PATH"
+EOF
     mv profile ~/
     mv passenger-kill-stuck-workers $passenger_install_dir/bin/
 
