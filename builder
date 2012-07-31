@@ -91,7 +91,8 @@ install_nginx_passenger() {
     fi
 
     # update nginx configuration file
-    # XXX: PORT_WWW is missing in the environment at build time
+    # XXX: This should be done during postinstall, PORT_WWW is not yet in the
+    # environment during the build.
     sed > $nginx_install_dir/conf/nginx.conf < nginx.conf.in    \
         -e "s/@PORT_WWW@/${PORT_WWW:-42800}/g"                  \
         -e "s#@PASSENGER_ROOT@#$passenger_install_dir#g"        \
