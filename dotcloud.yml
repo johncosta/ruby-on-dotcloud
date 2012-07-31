@@ -1,6 +1,8 @@
 ruby:
     type: custom
     buildscript: builder
+    ports:
+        www: http
     systempackages:
         # needed for the Nginx rewrite module
         - libpcre3-dev
