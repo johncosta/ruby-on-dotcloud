@@ -41,70 +41,71 @@ include PhusionPassenger::AdminTools
 $CHECK_INTERVAL = 60
 
 def watch_processes(server_instance)
-    server_instance.connect(:passenger_status) do
-        last = {}
-        while 1 do
-            current = {}
+  server_instance.connect(:passenger_status) do
+    last = {}
+    while 1 do
+      current = {}
 
-            # Inspect each Rack process in each Passenger group
-            server_instance.groups.each do |group|
-                current[group.name] = {}
+      # Inspect each Rack process in each Passenger group
+      server_instance.groups.each do |group|
+        current[group.name] = {}
 
-                group.processes.each do |process|
-                    # We don't care about idle processes
-                    if process.sessions > 0
+        group.processes.each do |process|
+          # We don't care about idle processes
+          if process.sessions > 0
 
-                        # Check if we know this process already and if it is stuck
-                        if last.has_key?(group.name) and last[group.name].has_key?(process.pid) \
-                           and last[group.name][process.pid] == process.processed
-                            puts "Killing stuck process #{process.pid} (processed #{process.processed} requests)"
-                            Process.kill("KILL", process.pid)
-                        else
-                            # Refresh its status in our hash
-                            current[group.name][process.pid] = process.processed
-                        end
+            # Check if we know this process already and if it is stuck
+            if last.has_key?(group.name) and last[group.name].has_key?(process.pid) \
+              and last[group.name][process.pid] == process.processed
 
-                    end
-                end
-
+              puts "Killing stuck process #{process.pid} (processed #{process.processed} requests)"
+              Process.kill("KILL", process.pid)
+            else
+              # Refresh its status in our hash
+              current[group.name][process.pid] = process.processed
             end
 
-            last = current
-            sleep $CHECK_INTERVAL
+          end
         end
+
+      end
+
+      last = current
+      sleep $CHECK_INTERVAL
     end
+  end
 end
 
 def run
-    if ARGV.empty?
-        while 1 do
-            server_instances = ServerInstance.list
-            if server_instances.empty?
-                STDERR.puts("ERROR: Phusion Passenger doesn't seem to be running, retrying in #{$CHECK_INTERVAL}s.")
-                sleep $CHECK_INTERVAL
-            else
-                break
-            end
-        end
-
-        if server_instances.size == 1
-            watch_processes(server_instances.first)
-        else
-            puts "It appears that multiple Passenger instances are running. Please select a"
-            puts "specific one by running:"
-            puts
-            puts "  passenger-kill-stuck-workers <PID>"
-            puts
-            puts "The following Passenger instances are running:"
-            server_instances.each do |instance|
-                puts "  PID: #{instance.pid}"
-            end
-            exit 1
-        end
-    else
-        server_instance = ServerInstance.for_pid(ARGV[0].to_i)
-        watch_processes(server_instance)
+  if ARGV.empty?
+    while 1 do
+      server_instances = ServerInstance.list
+      if server_instances.empty?
+        STDERR.puts("ERROR: Phusion Passenger doesn't seem to be running, retrying in #{$CHECK_INTERVAL}s.")
+        sleep $CHECK_INTERVAL
+      else
+        break
+      end
     end
+
+    if server_instances.size == 1
+      watch_processes(server_instances.first)
+    else
+      puts "It appears that multiple Passenger instances are running. Please select a"
+      puts "specific one by running:"
+      puts
+      puts "  passenger-kill-stuck-workers <PID>"
+      puts
+      puts "The following Passenger instances are running:"
+      server_instances.each do |instance|
+        puts "  PID: #{instance.pid}"
+      end
+      exit 1
+    end
+  else
+    server_instance = ServerInstance.for_pid(ARGV[0].to_i)
+    watch_processes(server_instance)
+  end
 end
 
 run
