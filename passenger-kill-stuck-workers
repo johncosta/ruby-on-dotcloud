@@ -43,7 +43,7 @@ $CHECK_INTERVAL = 60
 def watch_processes(server_instance)
   server_instance.connect(:passenger_status) do
     last = {}
-    while 1 do
+    loop do
       current = {}
 
       # Inspect each Rack process in each Passenger group
@@ -78,7 +78,7 @@ end
 
 def run
   if ARGV.empty?
-    while 1 do
+    loop do
       server_instances = ServerInstance.list
       if server_instances.empty?
         STDERR.puts("ERROR: Phusion Passenger doesn't seem to be running, retrying in #{$CHECK_INTERVAL}s.")
